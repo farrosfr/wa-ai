@@ -1,0 +1,25 @@
+# Folder dependensi Node.js
+# Folder ini bisa dibuat ulang kapan saja dengan 'npm install'
+node_modules/
+
+# File environment variables
+# BERISI API KEY DAN INFORMASI SENSITIF LAINNYA!
+.env
+
+# Folder sesi otentikasi Baileys
+# Berisi kredensial login WhatsApp Anda
+auth_info_baileys/
+
+# File log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# File sistem operasi
+.DS_Store
+Thumbs.db
+
+# Folder spesifik editor kode (opsional)
+.vscode/
+.idea/
