@@ -1,5 +1,5 @@
 // Memuat environment variables dari file .env
-require('dotenv').config(); 
+require('dotenv').config();
 const { OpenAI } = require("openai");
 
 // Inisialisasi client OpenAI dengan API Key dari .env
@@ -11,27 +11,28 @@ const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 const pino = require('pino');
 
-// Fungsi terpisah untuk memanggil AI, agar kode lebih rapi
+// --- PERUBAHAN 1: Definisikan "Tanda Tangan" di luar fungsi ---
+// Kita gunakan Zero-Width Space, karakter yang tidak terlihat oleh mata manusia.
+const BOT_SIGNATURE = '\u200B';
+
 async function getAIResponse(userInput, userName) {
     try {
-        // Prompt Engineering: Memberi instruksi kepada AI
-        const instructions = `Anda adalah Diko Asisten pendidikan AI.
-        Seorang pengguna bernama "${userName}" memanggil Anda.
-        Berikan respon dengan sopan dan beri sedikit emot tidak apa-apa.
-        Jawab dengan bahasa Indonesia. Jika Anda tidak tahu jawabannya, katakan Maaf, saya tidak tahu. Jangan mencoba untuk mengarang jawaban. Jangan gunakan format LaTeX.`;
+        const instructions = `Anda adalah Diko, Asisten AI Pendidikan yang ramah. 
+        Selalu jawab dalam bahasa Indonesia dengan sopan dan tambahkan sedikit emoji yang relevan. 
+        Sapa pengguna bernama "${userName}". Jika Anda tidak tahu jawabannya, katakan saja "Maaf, Diko belum tahu tentang itu."`;
 
         const response = await openai.responses.create({
-            model: "gpt-5-mini", // Model bisa disesuaikan
+            model: "gpt-5-mini",
             instructions: instructions,
-            // 'input' sekarang bisa menerima string atau array
-            input: userInput, 
+            input: userInput,
         });
+        
+        // --- PERUBAHAN 2: Tambahkan tanda tangan ke setiap respons AI ---
+        return response.output_text + BOT_SIGNATURE;
 
-        // Mengambil teks dari respons AI
-        return response.output_text;
     } catch (error) {
         console.error("Error saat memanggil OpenAI API:", error);
-        return "Maaf, sepertinya AI sedang istirahat. Coba lagi nanti ya. 😴";
+        return "Aduh, maaf, sepertinya ada sedikit gangguan di sistem Diko. 😴" + BOT_SIGNATURE;
     }
 }
 
@@ -48,18 +49,14 @@ async function connectToWhatsApp() {
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
-
         if (qr) {
             console.log("QR Code diterima, silakan scan:");
             qrcode.generate(qr, { small: true });
         }
-
         if (connection === 'close') {
             const shouldReconnect = (lastDisconnect.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
             console.log('Koneksi terputus karena ', lastDisconnect.error, ', mencoba menghubungkan kembali... ', shouldReconnect);
-            if (shouldReconnect) {
-                connectToWhatsApp();
-            }
+            if (shouldReconnect) connectToWhatsApp();
         } else if (connection === 'open') {
             console.log('Koneksi berhasil tersambung!');
         }
@@ -74,30 +71,41 @@ async function connectToWhatsApp() {
             const messageText = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
             const senderName = msg.pushName || "User";
 
-            // Cek apakah pesan berasal dari grup
-            const isGroup = sender.endsWith('@g.us');
-        
-            console.log(`Pesan dari [${sender}]: ${messageText}`);
+            const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
+            const quotedMessageText = contextInfo?.quotedMessage?.conversation || contextInfo?.quotedMessage?.extendedTextMessage?.text || "";
+            
+            // --- PERUBAHAN 3: Logika deteksi balasan yang baru ---
+            // Cek apakah pesan yang dibalas diakhiri dengan tanda tangan bot kita.
+            const isReplyToBot = quotedMessageText.endsWith(BOT_SIGNATURE);
 
-            if (messageText.toLowerCase() === '!ping') {
-                await sock.sendMessage(sender, { text: 'Pong! 🏓' });
+            if (contextInfo) {
+                console.log(`[DEBUG] Pesan ini adalah balasan.`);
+                console.log(`   > Teks pesan yg dibalas: "${quotedMessageText.slice(0, 20)}..."`);
+                console.log(`   > Apakah ini balasan untuk bot? : ${isReplyToBot}`);
             }
-
-            if (isGroup && messageText.toLowerCase().includes('diko')) {
-                console.log(`Keyword 'diko' terdeteksi di grup ${sender}.`);
-
-                const senderName = msg.pushName || "User"; // Mengambil nama pengirim
+            
+            if (isReplyToBot) {
+                console.log(`[REPLY DETECTED] Bot di-reply oleh ${senderName}.`);
                 
-                // Menampilkan status "typing..." di WhatsApp
+                // Bersihkan teks pesan yang dibalas dari tanda tangan kita
+                const cleanQuotedText = quotedMessageText.replace(BOT_SIGNATURE, '');
+
+                const chatHistory = [
+                    { role: "assistant", content: cleanQuotedText },
+                    { role: "user", content: messageText }
+                ];
+
                 await sock.sendPresenceUpdate('composing', sender);
-
-                // Memanggil fungsi AI dan mendapatkan respons
-                const aiReply = await getAIResponse(messageText, senderName);
-                
-                // Membalas pesan spesifik dari user tersebut (quoted reply)
+                const aiReply = await getAIResponse(chatHistory, senderName);
                 await sock.sendMessage(sender, { text: aiReply }, { quoted: msg });
+                await sock.sendPresenceUpdate('paused', sender);
+
+            } else if (messageText.toLowerCase().includes('diko')) {
+                console.log(`[KEYWORD DETECTED] Keyword 'diko' dari ${senderName}.`);
                 
-                // Menghentikan status "typing..."
+                await sock.sendPresenceUpdate('composing', sender);
+                const aiReply = await getAIResponse(messageText, senderName);
+                await sock.sendMessage(sender, { text: aiReply }, { quoted: msg });
                 await sock.sendPresenceUpdate('paused', sender);
             }
         }
