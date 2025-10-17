@@ -44,7 +44,7 @@ async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
     const sock = makeWASocket({ 
         logger: pino({ level: 'silent' }), 
-        printQRInTerminal: true, 
+        // printQRInTerminal: true, 
         browser: Browsers.macOS('Desktop'), 
         auth: state 
     });
