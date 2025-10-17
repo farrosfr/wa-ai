@@ -42,11 +42,20 @@ async function getAIResponse(userInput, userName, characterName, imageBase64 = n
 async function connectToWhatsApp() {
     const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, downloadMediaMessage } = await import('@whiskeysockets/baileys');
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-    const sock = makeWASocket({ logger: pino({ level: 'silent' }), printQRInTerminal: true, browser: Browsers.macOS('Desktop'), auth: state });
+    const sock = makeWASocket({ 
+        logger: pino({ level: 'silent' }), 
+        // printQRInTerminal: true, 
+        browser: Browsers.macOS('Desktop'), 
+        auth: state 
+    });
     
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
-        if(qr) qrcode.generate(qr, { small: true });
+        // if(qr) qrcode.generate(qr, { small: true });
+        if(qr) {
+            console.log("QR Code diterima, silakan scan di bawah ini:");
+            qrcode.generate(qr, { small: true }); // <-- Pastikan baris ini aktif
+        }
         if(connection === 'close') {
             const shouldReconnect = (lastDisconnect.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
             if(shouldReconnect) connectToWhatsApp();
