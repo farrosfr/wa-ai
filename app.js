@@ -40,16 +40,17 @@ async function getAIResponse(userInput, userName, characterName, imageBase64 = n
 }
 
 async function connectToWhatsApp() {
+    console.log('Mencoba menyambungkan ke WhatsApp...');
     const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, downloadMediaMessage } = await import('@whiskeysockets/baileys');
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
     const sock = makeWASocket({ 
-        logger: pino({ level: 'silent' }), 
+        logger: pino({ level: 'info' }), 
         // printQRInTerminal: true, 
-        browser: Browsers.macOS('Desktop'), 
         auth: state 
     });
     
     sock.ev.on('connection.update', (update) => {
+        console.log('Menerima pembaruan koneksi:', JSON.stringify(update, null, 2));
         const { connection, lastDisconnect, qr } = update;
         // if(qr) qrcode.generate(qr, { small: true });
         if(qr) {
