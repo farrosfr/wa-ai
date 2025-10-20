@@ -53,8 +53,10 @@ async function connectToWhatsApp() {
         const { connection, lastDisconnect, qr } = update;
         // if(qr) qrcode.generate(qr, { small: true });
         if(qr) {
-            console.log("QR Code diterima, silakan scan di bawah ini:");
-            qrcode.generate(qr, { small: true }); // <-- Pastikan baris ini aktif
+            console.log("------------------------------------------------");
+            console.log("   Silakan Scan QR Code di bawah ini untuk Login  ");
+            console.log("------------------------------------------------");
+            qrcode.generate(qr, { small: true });
         }
         if(connection === 'close') {
             const shouldReconnect = (lastDisconnect.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
